@@ -1,4 +1,4 @@
-const CACHE = 'egg-shell-1'
+const CACHE = 'egg-shell-2'
 
 self.addEventListener('install', () => {
   self.skipWaiting()
@@ -21,16 +21,30 @@ function asset(url) {
   return /\.(?:js|css|woff2?|png|webmanifest)$/.test(url.pathname)
 }
 
-async function fromCache(request) {
+function shell(request, url) {
+  return request.mode === 'navigate' || url.pathname.endsWith('/') || url.pathname.endsWith('.html')
+}
+
+async function networkFirst(request) {
+  const cache = await caches.open(CACHE)
+  try {
+    const response = await fetch(request)
+    if (response.ok) cache.put(request, response.clone())
+    return response
+  } catch {
+    const hit = await cache.match(request)
+    if (hit) return hit
+    return Response.error()
+  }
+}
+
+async function cacheFirst(request) {
   const cache = await caches.open(CACHE)
   const hit = await cache.match(request)
-  const fresh = fetch(request)
-    .then((response) => {
-      if (response.ok) cache.put(request, response.clone())
-      return response
-    })
-    .catch(() => hit)
-  return hit || fresh
+  if (hit) return hit
+  const response = await fetch(request)
+  if (response.ok) cache.put(request, response.clone())
+  return response
 }
 
 self.addEventListener('fetch', (event) => {
@@ -38,7 +52,9 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return
   const url = new URL(request.url)
   if (!sameOrigin(url) || url.pathname.endsWith('.json') || url.pathname.endsWith('/sw.js')) return
-  if (request.mode === 'navigate' || asset(url) || url.pathname.endsWith('/') || url.pathname.endsWith('.html')) {
-    event.respondWith(fromCache(request))
+  if (shell(request, url)) {
+    event.respondWith(networkFirst(request))
+    return
   }
+  if (asset(url)) event.respondWith(cacheFirst(request))
 })
