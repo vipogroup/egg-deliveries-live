@@ -37,7 +37,7 @@ self.addEventListener('fetch', (event) => {
   const request = event.request
   if (request.method !== 'GET') return
   const url = new URL(request.url)
-  if (!sameOrigin(url) || url.pathname.endsWith('.json')) return
+  if (!sameOrigin(url) || url.pathname.endsWith('.json') || url.pathname.endsWith('/sw.js')) return
   if (request.mode === 'navigate' || asset(url) || url.pathname.endsWith('/') || url.pathname.endsWith('.html')) {
     event.respondWith(fromCache(request))
   }
